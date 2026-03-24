@@ -254,7 +254,24 @@ function renderBlocked(){return`<div class="gate-wrap"><div style="text-align:ce
 function renderGate(){return`<div class="gate-wrap"><div class="login-card"><img src="${LOGO}" class="login-logo-img" alt="Shape"/><div class="login-sub">Plataforma de gestão de demandas internas</div><div id="gateErr" style="display:none" class="login-err"></div><div class="field"><label>Código de acesso da empresa</label><input id="gateCode" type="text" placeholder="Digite o código da empresa" autocomplete="off" style="letter-spacing:.12em;font-weight:600;text-transform:uppercase;text-align:center"/></div><button class="btn btn-primary btn-full" id="btnGate">Continuar</button></div></div>`;}
 
 function attachGateEvents(){
-const go=()=>{const v=document.getElementById(‘gateCode’).value.trim().toUpperCase();if(v===COMPANY_CODE){companyOk=true;render();}else{const e=document.getElementById(‘gateErr’);e.style.display=‘block’;e.textContent=‘Código incorreto.’;}};
+const go=()=>{
+const v=document.getElementById(‘gateCode’).value.trim().toUpperCase();
+if(v===COMPANY_CODE){
+companyOk=true;
+// Se já autenticado no Firebase, vai direto pro app
+// Senão, mostra login
+if(auth.currentUser&&currentUser){
+render();
+} else {
+document.getElementById(‘app’).innerHTML=renderLogin();
+attachLoginEvents();
+}
+}else{
+const e=document.getElementById(‘gateErr’);
+e.style.display=‘block’;
+e.textContent=‘Código incorreto. Contacte o administrador.’;
+}
+};
 document.getElementById(‘btnGate’)?.addEventListener(‘click’,go);
 document.getElementById(‘gateCode’)?.addEventListener(‘keydown’,e=>{if(e.key===‘Enter’)go();});
 }
@@ -296,6 +313,20 @@ try{await sendPasswordResetEmail(auth,email);closeModal();toast(‘Link de redef
 catch(e){err.style.display=‘block’;err.textContent=‘E-mail não encontrado.’;}
 };
 
+// ═══ INIT — mostra gate imediatamente ═══
+// Verifica URL key e código da empresa antes de qualquer coisa
+(function(){
+const params=new URLSearchParams(window.location.search);
+urlKeyOk=params.get(‘key’)===APP_KEY;
+if(!urlKeyOk){
+document.getElementById(‘app’).innerHTML=renderBlocked();
+return;
+}
+// Mostra gate de código da empresa imediatamente
+document.getElementById(‘app’).innerHTML=renderGate();
+attachGateEvents();
+})();
+
 // ═══ AUTH STATE ═══
 onAuthStateChanged(auth,async(fbUser)=>{
 authReady=true;
@@ -310,16 +341,16 @@ await loadUsers();
 startListeners();
 render();
 }else{
-// perfil não encontrado — desloga
 await signOut(auth);
-currentUser=null;render();
+currentUser=null;
+if(companyOk)render();
 }
-}catch(e){currentUser=null;render();}
+}catch(e){currentUser=null;if(companyOk)render();}
 }else{
 if(unsubDemands){unsubDemands();unsubDemands=null;}
 if(unsubNotifs){unsubNotifs();unsubNotifs=null;}
 currentUser=null;
-if(authReady)render();
+if(authReady&&companyOk)render();
 }
 });
 
